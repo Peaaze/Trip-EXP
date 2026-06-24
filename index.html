@@ -7,6 +7,8 @@
 <meta name="theme-color" content="#19262E">
 <title>Trip Expenses</title>
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 :root{
   --paper:#ECEEF0;
@@ -19,6 +21,9 @@
   --danger:#B23A48;
   --lg:#06C755;
   --lg-dk:#059A44;
+  --blue:#2563EB;
+  --blue-dk:#1D4ED8;
+  --blue-lt:#EFF6FF;
   --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Sukhumvit Set","Noto Sans Thai",Roboto,"Helvetica Neue",Arial,sans-serif;
 }
@@ -38,6 +43,10 @@ body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:
 .pname{font-size:13px;font-weight:700;color:rgba(255,255,255,.88);max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .lbadge{display:none;align-items:center;gap:4px;font-size:11px;color:var(--lg);font-weight:700;margin-top:1px;letter-spacing:.02em;}
 .lbadge svg{width:11px;height:11px;fill:currentColor;}
+.code-badge{display:none;align-items:center;gap:5px;background:rgba(37,99,235,.25);border:1px solid rgba(37,99,235,.4);border-radius:20px;padding:3px 10px;margin-top:3px;}
+.code-badge-dot{width:7px;height:7px;background:#60A5FA;border-radius:50%;animation:pulse 1.8s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+.code-badge-txt{font-family:var(--mono);font-size:12px;font-weight:700;color:#93C5FD;letter-spacing:.12em;}
 .topright{display:flex;gap:8px;}
 .iconbtn-hd{background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.7);width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;flex:none;}
 .iconbtn-hd:active{background:rgba(255,255,255,.2);}
@@ -71,6 +80,33 @@ body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:
 .btn-connect:disabled{opacity:.55;}
 .setup-err{color:var(--danger);font-size:12px;margin-top:8px;min-height:0;}
 .btn-dismiss{background:transparent;border:none;color:var(--muted);font-size:12px;cursor:pointer;margin-top:10px;padding:0;text-decoration:underline;font-family:var(--sans);}
+
+/* ── shared trip card ── */
+.shared-card{background:var(--card);border:1.5px solid var(--blue);border-radius:14px;padding:18px 16px;margin-top:16px;}
+.shared-card h3{margin:0 0 6px;font-size:15px;font-weight:700;display:flex;align-items:center;gap:9px;}
+.bicon{width:28px;height:28px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center;flex:none;font-size:15px;}
+.shared-card p{font-size:13px;color:var(--muted);margin:0 0 14px;}
+.shared-acts{display:flex;gap:8px;margin-bottom:10px;}
+.btn-start{background:var(--blue);color:#fff;border:none;border-radius:9px;padding:11px 16px;font-family:var(--sans);font-size:14px;font-weight:700;cursor:pointer;flex:1;}
+.btn-start:active{background:var(--blue-dk);}
+.join-row{display:flex;gap:8px;}
+.join-row input{flex:1;font-family:var(--mono);font-size:15px;color:var(--ink);background:#fff;border:1.5px solid var(--border);border-radius:9px;padding:10px 12px;letter-spacing:.1em;text-transform:uppercase;}
+.join-row input:focus{outline:none;border-color:var(--blue);}
+.btn-join{background:transparent;color:var(--blue);border:1.5px solid var(--blue);border-radius:9px;padding:10px 16px;font-family:var(--sans);font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.btn-join:active{background:var(--blue-lt);}
+.join-err{color:var(--danger);font-size:12px;margin-top:8px;min-height:0;}
+
+/* shared active state */
+.code-block{background:var(--blue-lt);border:1px solid #BFDBFE;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px;}
+.code-block .code-lbl{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#3B82F6;font-weight:700;margin-bottom:6px;}
+.code-big{font-family:var(--mono);font-size:36px;font-weight:700;color:#1D4ED8;letter-spacing:.18em;}
+.code-block .code-hint{font-size:12px;color:#60A5FA;margin-top:6px;}
+.btn-share-code{width:100%;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:12px;font-family:var(--sans);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;}
+.btn-share-code:active{background:var(--blue-dk);}
+.btn-leave{width:100%;background:transparent;color:var(--danger);border:1px solid #FECDD3;border-radius:10px;padding:10px;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;}
+.btn-leave:active{background:#FFF1F2;}
+.sync-indicator{display:flex;align-items:center;gap:6px;font-size:12px;color:#3B82F6;margin-bottom:12px;}
+.sync-dot{width:8px;height:8px;background:#3B82F6;border-radius:50%;animation:pulse 1.8s infinite;flex:none;}
 
 /* ── modal ── */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s;}
@@ -169,6 +205,10 @@ button{font-family:var(--sans);font-size:15px;font-weight:600;cursor:pointer;bor
               <svg viewBox="0 0 18 18"><path d="M9 1C4.59 1 1 4.03 1 7.76c0 3.37 2.99 6.19 7.03 6.68.27.06.64.18.74.41.08.21.06.54.03.76l-.12.72c-.04.21-.17.83.73.45.9-.38 4.84-2.85 6.6-4.88C17.31 10.58 17 9.21 17 7.76 17 4.03 13.41 1 9 1z"/></svg>
               LINE Connected
             </div>
+            <div class="code-badge" id="codeBadge">
+              <span class="code-badge-dot"></span>
+              <span class="code-badge-txt" id="codeBadgeTxt"></span>
+            </div>
           </div>
         </div>
         <div class="topright">
@@ -193,6 +233,48 @@ button{font-family:var(--sans);font-size:15px;font-weight:600;cursor:pointer;bor
 
 <main class="wrap">
 
+  <!-- Shared Trip Card -->
+  <div class="shared-card" id="sharedCard">
+    <!-- Setup state -->
+    <div id="sharedSetup">
+      <h3>
+        <span class="bicon">✈️</span>
+        Share this trip
+      </h3>
+      <p>Let your travel companion add and view expenses in real-time.</p>
+      <div class="shared-acts">
+        <button class="btn-start" id="startSharedBtn">＋ Start Shared Trip</button>
+      </div>
+      <div class="join-row">
+        <input type="text" id="joinCodeInput" placeholder="TRIP CODE" maxlength="8" autocomplete="off">
+        <button class="btn-join" id="joinBtn">Join</button>
+      </div>
+      <div class="join-err" id="joinErr"></div>
+    </div>
+
+    <!-- Active state -->
+    <div id="sharedActive" style="display:none">
+      <h3>
+        <span class="bicon">🔗</span>
+        Shared Trip Active
+      </h3>
+      <div class="sync-indicator">
+        <span class="sync-dot"></span>
+        Syncing in real-time
+      </div>
+      <div class="code-block">
+        <div class="code-lbl">Trip Code</div>
+        <div class="code-big" id="codeDisplay">------</div>
+        <div class="code-hint">Share this code with your companion</div>
+      </div>
+      <button class="btn-share-code" id="shareCodeBtn">
+        <svg width="17" height="17" viewBox="0 0 18 18" fill="currentColor"><path d="M9 1C4.59 1 1 4.03 1 7.76c0 3.37 2.99 6.19 7.03 6.68.27.06.64.18.74.41.08.21.06.54.03.76l-.12.72c-.04.21-.17.83.73.45.9-.38 4.84-2.85 6.6-4.88C17.31 10.58 17 9.21 17 7.76 17 4.03 13.41 1 9 1z"/></svg>
+        Share Trip Link to LINE
+      </button>
+      <button class="btn-leave" id="leaveSharedBtn">Leave Shared Trip</button>
+    </div>
+  </div>
+
   <!-- LINE Setup Card -->
   <div class="setup-card" id="setupCard">
     <h3>
@@ -205,8 +287,8 @@ button{font-family:var(--sans);font-size:15px;font-weight:600;cursor:pointer;bor
     <div class="steps">
       <div class="step"><span class="step-n">1.</span><span class="step-t">Go to <a href="https://developers.line.biz" target="_blank">developers.line.biz</a> → create a Provider</span></div>
       <div class="step"><span class="step-n">2.</span><span class="step-t">Create a <b>LINE Login</b> channel</span></div>
-      <div class="step"><span class="step-n">3.</span><span class="step-t">LIFF tab → Add LIFF App → set <b>Endpoint URL</b> to this file's HTTPS address (e.g. GitHub Pages)</span></div>
-      <div class="step"><span class="step-n">4.</span><span class="step-t">Copy the LIFF ID (looks like <code>1234567890-AbCdEfGh</code>) and paste below</span></div>
+      <div class="step"><span class="step-n">3.</span><span class="step-t">LIFF tab → Add LIFF App → set <b>Endpoint URL</b> to this file's HTTPS address</span></div>
+      <div class="step"><span class="step-n">4.</span><span class="step-t">Copy the LIFF ID (e.g. <code>1234567890-AbCdEfGh</code>) and paste below</span></div>
     </div>
     <div class="setup-row">
       <input type="text" id="liffInput" placeholder="1234567890-AbCdEfGh" autocomplete="off">
@@ -219,7 +301,6 @@ button{font-family:var(--sans);font-size:15px;font-weight:600;cursor:pointer;bor
   <!-- Expense Form -->
   <section class="card">
     <h2 id="formHead">Add expense</h2>
-
     <div class="field">
       <label for="fDate">Date</label>
       <input type="date" id="fDate">
@@ -289,6 +370,18 @@ button{font-family:var(--sans);font-size:15px;font-weight:600;cursor:pointer;bor
 (function(){
 "use strict";
 
+/* ── Firebase init ── */
+var firebaseConfig = {
+  apiKey: "AIzaSyDSEgSAiNcVWjZYOg1hlB3zkxFEjrfVpnw",
+  authDomain: "trip-exp-b39c3.firebaseapp.com",
+  projectId: "trip-exp-b39c3",
+  storageBucket: "trip-exp-b39c3.firebasestorage.app",
+  messagingSenderId: "377797277039",
+  appId: "1:377797277039:web:ecd3f722aa74a0c964a49a"
+};
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
+
 /* ── config ── */
 var CATS = [
   {id:"food",     label:"Food & Drink",           color:"#C2922F",tint:"#F4E8CC"},
@@ -307,20 +400,29 @@ var CURRENCIES = ["USD","EUR","JPY","GBP","CNY","KRW","SGD","MYR","HKD","AUD",
                   "LAK","MMK","KHR","SEK","NOK","DKK","ZAR","TRY","RUB"];
 var NODP = {JPY:1,KRW:1,VND:1,IDR:1,LAK:1,MMK:1,KHR:1};
 
-var SK = "tripEx.v2", LK = "tripEx.liffId", DK = "tripEx.dismissed";
+var SK = "tripEx.v2", LK = "tripEx.liffId", DK = "tripEx.dismissed", SK_CODE = "tripEx.sharedCode";
 
 /* ── state ── */
 var S = {title:"",expenses:[],rates:{},lastCur:""};
 var editId = null;
 var lineOk = false;
 var curLiffId = "";
+var sharedMode = false;
+var tripCode = null;
+var firestoreUnsub = null;
 
 /* ── storage ── */
 function load(){
   try{var r=localStorage.getItem(SK);if(r){var p=JSON.parse(r);if(p){S.title=p.title||"";S.expenses=Array.isArray(p.expenses)?p.expenses:[];S.rates=p.rates||{};S.lastCur=p.lastCur||"";}}}catch(e){}
   curLiffId=localStorage.getItem(LK)||"";
 }
-function save(){try{localStorage.setItem(SK,JSON.stringify(S));}catch(e){}}
+function save(){
+  try{
+    var data={title:S.title,rates:S.rates,lastCur:S.lastCur};
+    if(!sharedMode) data.expenses=S.expenses;
+    localStorage.setItem(SK,JSON.stringify(data));
+  }catch(e){}
+}
 function saveLiff(id){curLiffId=id;try{id?localStorage.setItem(LK,id):localStorage.removeItem(LK);}catch(e){}}
 
 /* ── math ── */
@@ -340,7 +442,9 @@ var E={};
  "settingsBtn","setupCard","liffInput","connectBtn","setupErr","dismissBtn",
  "fDate","fDesc","fCat","fCur","fAmt","fRate","rateLabel","stubCalc","stubOut",
  "saveBtn","cancelBtn","formErr","formHead","list","breakdown","bkRows","curList",
- "settingsModal","sLiffId","mCancel","mSave","disconnectBtn","toast"
+ "settingsModal","sLiffId","mCancel","mSave","disconnectBtn","toast",
+ "sharedCard","sharedSetup","sharedActive","startSharedBtn","joinCodeInput",
+ "joinBtn","joinErr","codeDisplay","shareCodeBtn","leaveSharedBtn","codeBadge","codeBadgeTxt"
 ].forEach(function(id){E[id]=document.getElementById(id);});
 
 /* ── LIFF ── */
@@ -349,7 +453,7 @@ async function initLiff(id){
     await liff.init({liffId:id});
     if(!liff.isLoggedIn()){
       if(liff.isInClient()){liff.login({redirectUri:location.href});return false;}
-      return true; // outside LINE – still inited, just not logged in
+      return true;
     }
     var p=await liff.getProfile();
     showProfile(p);
@@ -360,47 +464,163 @@ async function initLiff(id){
     return false;
   }
 }
-
 function showProfile(p){
-  if(p.pictureUrl){
-    E.avatar.innerHTML='<img src="'+esc(p.pictureUrl)+'" alt="'+esc(p.displayName)+'" loading="lazy">';
-  }
+  if(p.pictureUrl){E.avatar.innerHTML='<img src="'+esc(p.pictureUrl)+'" alt="'+esc(p.displayName)+'" loading="lazy">';}
   E.pname.textContent=p.displayName||"LINE User";
   E.lbadge.style.display="flex";
 }
 
-/* ── share ── */
+/* ── Firestore shared trip ── */
+function genCode(){
+  var chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  var code="";
+  for(var i=0;i<6;i++) code+=chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
+
+async function startSharedTrip(){
+  E.startSharedBtn.textContent="Creating…";
+  E.startSharedBtn.disabled=true;
+  var code=genCode();
+  try{
+    await db.collection("trips").doc(code).set({
+      title:S.title||"",
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    tripCode=code;
+    sharedMode=true;
+    localStorage.setItem(SK_CODE,code);
+    subscribeToTrip(code);
+    refreshSharedUI();
+    showToast("Shared trip started!");
+  }catch(e){
+    console.error("startSharedTrip:",e);
+    showToast("Failed — check Firestore rules.");
+  }
+  E.startSharedBtn.textContent="＋ Start Shared Trip";
+  E.startSharedBtn.disabled=false;
+}
+
+async function joinSharedTrip(code){
+  code=code.trim().toUpperCase();
+  if(code.length<4){E.joinErr.textContent="Enter a valid trip code.";return;}
+  E.joinBtn.textContent="Joining…";
+  E.joinBtn.disabled=true;
+  E.joinErr.textContent="";
+  try{
+    var snap=await db.collection("trips").doc(code).get();
+    if(!snap.exists){
+      E.joinErr.textContent="Trip code not found. Ask the trip creator.";
+      E.joinBtn.textContent="Join";E.joinBtn.disabled=false;
+      return;
+    }
+    var data=snap.data();
+    if(data.title){S.title=data.title;E.tripTitle.value=data.title;}
+    tripCode=code;
+    sharedMode=true;
+    localStorage.setItem(SK_CODE,code);
+    subscribeToTrip(code);
+    refreshSharedUI();
+    showToast("Joined shared trip ✓");
+  }catch(e){
+    console.error("joinSharedTrip:",e);
+    E.joinErr.textContent="Connection failed. Check your internet.";
+  }
+  E.joinBtn.textContent="Join";E.joinBtn.disabled=false;
+}
+
+function subscribeToTrip(code){
+  if(firestoreUnsub) firestoreUnsub();
+  firestoreUnsub=db.collection("trips").doc(code).collection("expenses")
+    .onSnapshot(function(snapshot){
+      S.expenses=snapshot.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+      render();
+      if(S.expenses.length) E.shareBar.style.display="block";
+    },function(err){
+      console.error("Firestore snapshot error:",err);
+      showToast("Sync error — check connection");
+    });
+}
+
+function leaveSharedTrip(){
+  if(!confirm("Leave shared trip? Your solo expenses will be restored.")) return;
+  if(firestoreUnsub){firestoreUnsub();firestoreUnsub=null;}
+  sharedMode=false;
+  tripCode=null;
+  localStorage.removeItem(SK_CODE);
+  S.expenses=[];
+  load();
+  refreshSharedUI();
+  render();
+  showToast("Left shared trip");
+}
+
+async function saveExpenseFS(expense){
+  var data=Object.assign({},expense);
+  var id=data.id;delete data.id;
+  await db.collection("trips").doc(tripCode).collection("expenses").doc(id).set(data);
+}
+
+async function deleteExpenseFS(id){
+  await db.collection("trips").doc(tripCode).collection("expenses").doc(id).delete();
+}
+
+async function updateTripTitleFS(title){
+  if(!sharedMode||!tripCode) return;
+  try{await db.collection("trips").doc(tripCode).update({title:title});}catch(e){}
+}
+
+function buildShareUrl(code){
+  if(curLiffId) return "https://liff.line.me/"+curLiffId+"?trip="+code;
+  return window.location.origin+window.location.pathname+"?trip="+code;
+}
+
+async function doShareCode(){
+  var url=buildShareUrl(tripCode);
+  var text="✈️ Join my trip on Trip Expenses!\n\n🔑 Trip Code: "+tripCode+"\n\nOpen link:\n"+url;
+  var done=false;
+  if(lineOk&&liff.isApiAvailable&&liff.isApiAvailable("shareTargetPicker")){
+    try{var r=await liff.shareTargetPicker([{type:"text",text:text}]);if(r){showToast("Shared to LINE ✓");done=true;}}catch(e){}
+  }
+  if(!done&&navigator.share){
+    try{await navigator.share({title:"Join my trip",text:text});done=true;}catch(e){}
+  }
+  if(!done){
+    try{await navigator.clipboard.writeText(url);showToast("Trip link copied ✓");done=true;}catch(e){}
+    if(!done) showToast("Code: "+tripCode);
+  }
+}
+
+function refreshSharedUI(){
+  if(sharedMode&&tripCode){
+    E.sharedSetup.style.display="none";
+    E.sharedActive.style.display="block";
+    E.codeDisplay.textContent=tripCode;
+    E.codeBadge.style.display="flex";
+    E.codeBadgeTxt.textContent=tripCode;
+  }else{
+    E.sharedSetup.style.display="block";
+    E.sharedActive.style.display="none";
+    E.codeBadge.style.display="none";
+  }
+}
+
+/* ── share summary ── */
 async function doShare(){
   if(!S.expenses.length){showToast("No expenses to share yet");return;}
   var text=buildSummary();
   var done=false;
-
   if(lineOk){
-    // Try shareTargetPicker (lets user pick which chat)
     if(liff.isApiAvailable&&liff.isApiAvailable("shareTargetPicker")){
-      try{
-        var r=await liff.shareTargetPicker([{type:"text",text:text}]);
-        if(r){showToast("Shared to LINE ✓");done=true;}
-      }catch(e){console.warn("shareTargetPicker:",e);}
+      try{var r=await liff.shareTargetPicker([{type:"text",text:text}]);if(r){showToast("Shared to LINE ✓");done=true;}}catch(e){console.warn("shareTargetPicker:",e);}
     }
-    // Fallback: sendMessages (current chat, only in-client)
     if(!done&&liff.isInClient&&liff.isInClient()){
-      try{
-        await liff.sendMessages([{type:"text",text:text}]);
-        showToast("Sent to chat ✓");done=true;
-      }catch(e){console.warn("sendMessages:",e);}
+      try{await liff.sendMessages([{type:"text",text:text}]);showToast("Sent to chat ✓");done=true;}catch(e){console.warn("sendMessages:",e);}
     }
   }
-
-  // Web Share API
-  if(!done&&navigator.share){
-    try{await navigator.share({title:S.title||"Trip Expenses",text:text});done=true;}catch(e){}
-  }
-  // Clipboard
-  if(!done){
-    try{await navigator.clipboard.writeText(text);showToast("Summary copied ✓");done=true;}catch(e){}
-    if(!done)showToast("Could not share — copy manually");
-  }
+  if(!done&&navigator.share){try{await navigator.share({title:S.title||"Trip Expenses",text:text});done=true;}catch(e){}}
+  if(!done){try{await navigator.clipboard.writeText(text);showToast("Summary copied ✓");done=true;}catch(e){}}
+  if(!done) showToast("Could not share — copy manually");
 }
 
 function buildSummary(){
@@ -413,9 +633,10 @@ function buildSummary(){
   var em={food:"🍜",transport:"🚌",stay:"🏨",sights:"🎫",shop_eii:"🛍️",shop_pla:"🎁",other:"📌"};
   var rows=CATS.filter(function(c){return sums[c.id];}).map(function(c){return{c:c,v:sums[c.id]};}).sort(function(a,b){return b.v-a.v;});
   var lines=["✈️  "+title];
-  if(range)lines.push("📅 "+range);
+  if(range) lines.push("📅 "+range);
   lines.push("💰 Total: ฿"+fTHB(total),"","By category:");
   rows.forEach(function(r){lines.push((em[r.c.id]||"•")+" "+r.c.label+": ฿"+fTHB(r.v));});
+  if(sharedMode) lines.push("","🔑 Trip Code: "+tripCode);
   return lines.join("\n");
 }
 
@@ -441,14 +662,8 @@ async function doConnect(id){
   saveLiff(id);
   var ok=await initLiff(id);
   E.connectBtn.disabled=false;E.connectBtn.textContent="Connect";
-  if(ok){
-    lineOk=true;refreshSetup();
-    if(S.expenses.length)E.shareBar.style.display="block";
-    showToast("Connected to LINE ✓");
-  }else{
-    E.setupErr.textContent="Connection failed. Check the LIFF ID and make sure this page is hosted at the Endpoint URL you registered in LINE Developers.";
-    saveLiff("");
-  }
+  if(ok){lineOk=true;refreshSetup();if(S.expenses.length)E.shareBar.style.display="block";showToast("Connected to LINE ✓");}
+  else{E.setupErr.textContent="Connection failed. Check the LIFF ID and Endpoint URL.";saveLiff("");}
 }
 
 /* ── form ── */
@@ -463,7 +678,7 @@ function resetForm(){
 }
 function startEdit(id){
   var e=S.expenses.find(function(x){return x.id===id;});
-  if(!e)return;
+  if(!e) return;
   editId=id;E.fDate.value=e.date;E.fDesc.value=e.desc;E.fCat.value=e.cat;
   E.fCur.value=e.cur;E.fAmt.value=e.amt;E.fRate.value=e.rate;
   E.formHead.textContent="Edit expense";E.saveBtn.textContent="Update expense";
@@ -471,35 +686,66 @@ function startEdit(id){
   updateLabel();updateStub();
   E.formHead.scrollIntoView({behavior:"smooth",block:"start"});
 }
-function handleSave(){
+
+async function handleSave(){
   var date=E.fDate.value,desc=E.fDesc.value.trim(),cat=E.fCat.value,
       cur=E.fCur.value.trim().toUpperCase(),
       amt=pNum(E.fAmt.value),rate=pNum(E.fRate.value);
-  if(!date)return err("Pick a date.");
-  if(!desc)return err("Add a description.");
-  if(!cur)return err("Enter the currency.");
-  if(!isFinite(amt)||amt<=0)return err("Enter a valid amount.");
-  if(!isFinite(rate)||rate<=0)return err("Enter the exchange rate (1 "+cur+" in THB).");
+  if(!date) return err("Pick a date.");
+  if(!desc) return err("Add a description.");
+  if(!cur) return err("Enter the currency.");
+  if(!isFinite(amt)||amt<=0) return err("Enter a valid amount.");
+  if(!isFinite(rate)||rate<=0) return err("Enter the exchange rate (1 "+cur+" in THB).");
   var thbVal=rhu(amt*rate,2);
-  if(editId){
-    var e=S.expenses.find(function(x){return x.id===editId;});
-    if(e){e.date=date;e.desc=desc;e.cat=cat;e.cur=cur;e.amt=amt;e.rate=rate;e.thb=thbVal;}
-  }else{
-    S.expenses.push({id:uid(),date:date,desc:desc,cat:cat,cur:cur,amt:amt,rate:rate,thb:thbVal,at:Date.now()});
+  var expId=editId||uid();
+  var expense={id:expId,date:date,desc:desc,cat:cat,cur:cur,amt:amt,rate:rate,thb:thbVal,at:Date.now()};
+
+  E.saveBtn.disabled=true;
+  try{
+    if(sharedMode){
+      await saveExpenseFS(expense);
+      // onSnapshot will update S.expenses and call render()
+    }else{
+      if(editId){
+        var e=S.expenses.find(function(x){return x.id===editId;});
+        if(e){e.date=date;e.desc=desc;e.cat=cat;e.cur=cur;e.amt=amt;e.rate=rate;e.thb=thbVal;}
+      }else{
+        S.expenses.push(expense);
+      }
+      S.rates[cur]=rate;S.lastCur=cur;save();render();
+    }
+    S.rates[cur]=rate;S.lastCur=cur;save();
+    resetForm();
+    if(lineOk||S.expenses.length) E.shareBar.style.display="block";
+  }catch(e){
+    console.error("handleSave:",e);
+    err("Save failed — check connection.");
   }
-  S.rates[cur]=rate;S.lastCur=cur;save();resetForm();render();
-  if(lineOk)E.shareBar.style.display="block";
+  E.saveBtn.disabled=false;
 }
+
 function err(m){E.formErr.textContent=m;}
-function delExp(id){
+
+async function delExp(id){
   var e=S.expenses.find(function(x){return x.id===id;});
   if(confirm("Delete \""+(e?e.desc:"this expense")+"\"?")){
-    S.expenses=S.expenses.filter(function(x){return x.id!==id;});
-    if(editId===id)resetForm();
-    save();render();
-    if(!S.expenses.length)E.shareBar.style.display="none";
+    try{
+      if(sharedMode){
+        await deleteExpenseFS(id);
+        // onSnapshot will update list
+      }else{
+        S.expenses=S.expenses.filter(function(x){return x.id!==id;});
+        save();render();
+        if(!S.expenses.length) E.shareBar.style.display="none";
+      }
+      if(editId===id) resetForm();
+    }catch(e){
+      console.error("delExp:",e);
+      showToast("Delete failed — check connection.");
+    }
   }
 }
+
 function updateLabel(){
   var c=E.fCur.value.trim().toUpperCase()||"?";
   E.rateLabel.textContent="Exchange rate (1 "+c+" = ? THB)";
@@ -516,7 +762,7 @@ function updateStub(){
 function onCurChange(){
   updateLabel();
   var c=E.fCur.value.trim().toUpperCase();
-  if(c&&S.rates[c]&&!E.fRate.value)E.fRate.value=S.rates[c];
+  if(c&&S.rates[c]&&!E.fRate.value) E.fRate.value=S.rates[c];
   updateStub();
 }
 
@@ -582,7 +828,11 @@ E.fAmt.addEventListener("input",updateStub);
 E.fRate.addEventListener("input",updateStub);
 E.fCur.addEventListener("input",onCurChange);
 E.fCur.addEventListener("change",onCurChange);
-E.tripTitle.addEventListener("input",function(){S.title=E.tripTitle.value;save();});
+E.tripTitle.addEventListener("input",function(){
+  S.title=E.tripTitle.value;
+  save();
+  updateTripTitleFS(S.title);
+});
 E.shareBtn.addEventListener("click",doShare);
 E.connectBtn.addEventListener("click",function(){doConnect(E.liffInput.value);});
 E.dismissBtn.addEventListener("click",function(){localStorage.setItem(DK,"1");refreshSetup();});
@@ -607,6 +857,14 @@ E.disconnectBtn.addEventListener("click",function(){
   showToast("Disconnected from LINE");
 });
 
+/* shared trip events */
+E.startSharedBtn.addEventListener("click",startSharedTrip);
+E.joinBtn.addEventListener("click",function(){joinSharedTrip(E.joinCodeInput.value);});
+E.joinCodeInput.addEventListener("keydown",function(ev){if(ev.key==="Enter")joinSharedTrip(E.joinCodeInput.value);});
+E.joinCodeInput.addEventListener("input",function(){E.joinErr.textContent="";});
+E.shareCodeBtn.addEventListener("click",doShareCode);
+E.leaveSharedBtn.addEventListener("click",leaveSharedTrip);
+
 /* ── populate static lists ── */
 CATS.forEach(function(c){var o=document.createElement("option");o.value=c.id;o.textContent=c.label;E.fCat.appendChild(o);});
 CURRENCIES.forEach(function(c){var o=document.createElement("option");o.value=c;E.curList.appendChild(o);});
@@ -615,11 +873,31 @@ CURRENCIES.forEach(function(c){var o=document.createElement("option");o.value=c;
 load();
 E.tripTitle.value=S.title;
 resetForm();
-render();
-refreshSetup();
-if(S.expenses.length&&lineOk)E.shareBar.style.display="block";
 
-// Try LIFF silently in background if we have a saved ID
+// Check URL for trip code (?trip=CODE) — auto-join when friend clicks shared link
+var urlParams=new URLSearchParams(window.location.search);
+var urlTripCode=urlParams.get("trip");
+var savedCode=localStorage.getItem(SK_CODE);
+
+if(urlTripCode){
+  // Auto-join from link
+  joinSharedTrip(urlTripCode);
+}else if(savedCode){
+  // Reconnect to existing shared trip
+  tripCode=savedCode;
+  sharedMode=true;
+  subscribeToTrip(savedCode);
+  refreshSharedUI();
+}else{
+  // Solo mode
+  render();
+  refreshSharedUI();
+}
+
+refreshSetup();
+if(S.expenses.length&&lineOk) E.shareBar.style.display="block";
+
+// Try LIFF silently
 if(curLiffId){
   initLiff(curLiffId).then(function(ok){
     if(ok){lineOk=true;refreshSetup();if(S.expenses.length)E.shareBar.style.display="block";}
