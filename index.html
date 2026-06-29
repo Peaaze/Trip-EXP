@@ -116,7 +116,7 @@ html[data-theme="night"] .knob .ic-sun{display:none;}
 .share{position:fixed; right:24px; bottom:20px; width:50px; height:50px; background:var(--share-bg); border:none; color:var(--share-icon); border-radius:50%; font-size:21px; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.3);}
 
 .pop{position:absolute; z-index:50; background:var(--dropdown); border:1px solid var(--dropdown-border); border-radius:16px; box-shadow:0 8px 24px rgba(0,0,0,0.35); padding:6px; max-height:280px; overflow:auto;}
-.opt{display:flex; align-items:center; padding:9px 12px; font-size:12px; color:var(--text); letter-spacing:0.5px; border-radius:10px;}
+.opt{display:flex; align-items:center; padding:9px 12px; font-size:12px; color:var(--text); letter-spacing:0.5px; border-radius:10px; cursor:pointer;}
 .opt:active{background:var(--glass-field);}
 .pop input{width:100%; box-sizing:border-box; background:var(--glass-field); border:1px solid var(--glass-border); color:var(--text); border-radius:var(--r-pill); padding:9px 14px; font-family:inherit; text-transform:uppercase; font-size:12px; outline:none; margin-bottom:6px;}
 
@@ -126,7 +126,7 @@ html[data-theme="night"] .knob .ic-sun{display:none;}
 .cal-wk{display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:4px;}
 .cal-wk span{text-align:center; font-size:9px; letter-spacing:0.5px; color:var(--muted);}
 .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:3px;}
-.cal-d{height:30px; display:flex; align-items:center; justify-content:center; font-size:12px; border-radius:50%; color:var(--text);}
+.cal-d{height:30px; display:flex; align-items:center; justify-content:center; font-size:12px; border-radius:50%; color:var(--text); cursor:pointer;}
 .cal-d.sel{background:var(--cal-sel-bg); color:var(--cal-sel-text); font-weight:700;}
 .cal-d.empty{visibility:hidden;}
 
@@ -283,11 +283,17 @@ async function init(){
     showFatal("Couldn't load Firebase / LINE libraries.<br>Open this page over https inside LINE (not the file preview).");
     return;
   }
-  try{ firebase.initializeApp(FIREBASE_CONFIG); db = firebase.firestore(); }catch(e){ console.error('Firebase init',e); showFatal('Firebase failed to start. Check your config keys.'); return; }
+  // Init Firebase first so UI stays functional even if LIFF fails
+  try{ firebase.initializeApp(FIREBASE_CONFIG); db = firebase.firestore(); }
+  catch(e){ console.error('Firebase init',e); showFatal('Firebase failed to start. Check your config keys.'); return; }
+
+  // LIFF init with 8s timeout guard — if it hangs, continue without LINE profile
   try{
-    await liff.init({ liffId: LIFF_ID });
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('LIFF timeout')),8000))
+    ]);
     if(!liff.isLoggedIn()){
-      // Store current URL so we can restore after login redirect
       liff.login({ redirectUri: location.href });
       return;
     }
@@ -295,25 +301,19 @@ async function init(){
     el('uname').textContent = profile.displayName || 'Me';
     if(profile.pictureUrl){
       const img = document.createElement('img');
-      img.src = profile.pictureUrl;
-      img.alt = '';
+      img.src = profile.pictureUrl; img.alt = '';
       img.onerror = ()=>{ el('avatar').innerHTML='<svg class="ic"><use href="#i-user"></use></svg>'; };
       el('avatar').innerHTML = '';
       el('avatar').appendChild(img);
     }
   }catch(e){
-    console.warn('LIFF unavailable:', e);
+    // LIFF failed or timed out — app still works, just no LINE profile
+    console.warn('LIFF unavailable:', e.message);
     el('uname').textContent = 'Me';
-    // Try to recover profile from LIFF context even if init partially failed
-    try{
-      if(liff.isLoggedIn && liff.isLoggedIn()){
-        profile = await liff.getProfile();
-        el('uname').textContent = profile.displayName || 'Me';
-        if(profile.pictureUrl) el('avatar').innerHTML = '<img src="'+profile.pictureUrl+'" alt="">';
-      }
-    }catch(_){}
   }
-  if(db) listenTrips(); else showFatal('Add your Firebase keys to connect.');
+
+  // Always start Firestore listener regardless of LIFF outcome
+  listenTrips();
 }
 function setSync(ok){ el('nosync').classList.toggle('hide', ok); }
 window.addEventListener('online', ()=>setSync(true));
@@ -500,7 +500,7 @@ el('formCancel').addEventListener('click', cancelEdit);
 function flash(node){ node.animate([{opacity:1},{opacity:.4},{opacity:1}],{duration:300}); }
 
 el('shareBtn').addEventListener('click', shareTrip);
-function shareTrip(){
+async function shareTrip(){
   if(!currentTrip) return; const grand=grandTotal();
   const sums=CATEGORIES.map(c=> expenses.filter(e=>e.category===c.key).reduce((a,e)=>a+(e.thb||0),0)); const pcts=percents(sums);
   let msg=currentTrip.name+'\nTOTAL '+fmtBaht(grand)+'\n\n— BY CATEGORY —\n';
