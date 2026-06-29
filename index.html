@@ -286,11 +286,33 @@ async function init(){
   try{ firebase.initializeApp(FIREBASE_CONFIG); db = firebase.firestore(); }catch(e){ console.error('Firebase init',e); showFatal('Firebase failed to start. Check your config keys.'); return; }
   try{
     await liff.init({ liffId: LIFF_ID });
-    if(!liff.isLoggedIn()){ liff.login(); return; }
+    if(!liff.isLoggedIn()){
+      // Store current URL so we can restore after login redirect
+      liff.login({ redirectUri: location.href });
+      return;
+    }
     profile = await liff.getProfile();
     el('uname').textContent = profile.displayName || 'Me';
-    if(profile.pictureUrl) el('avatar').innerHTML = '<img src="'+profile.pictureUrl+'" alt="">';
-  }catch(e){ console.warn('LIFF unavailable',e); el('uname').textContent='Me'; }
+    if(profile.pictureUrl){
+      const img = document.createElement('img');
+      img.src = profile.pictureUrl;
+      img.alt = '';
+      img.onerror = ()=>{ el('avatar').innerHTML='<svg class="ic"><use href="#i-user"></use></svg>'; };
+      el('avatar').innerHTML = '';
+      el('avatar').appendChild(img);
+    }
+  }catch(e){
+    console.warn('LIFF unavailable:', e);
+    el('uname').textContent = 'Me';
+    // Try to recover profile from LIFF context even if init partially failed
+    try{
+      if(liff.isLoggedIn && liff.isLoggedIn()){
+        profile = await liff.getProfile();
+        el('uname').textContent = profile.displayName || 'Me';
+        if(profile.pictureUrl) el('avatar').innerHTML = '<img src="'+profile.pictureUrl+'" alt="">';
+      }
+    }catch(_){}
+  }
   if(db) listenTrips(); else showFatal('Add your Firebase keys to connect.');
 }
 function setSync(ok){ el('nosync').classList.toggle('hide', ok); }
@@ -486,10 +508,26 @@ function shareTrip(){
   msg+='\n— BY DATE —\n'; const groups={}; expenses.forEach(e=>{ (groups[e.date]=groups[e.date]||[]).push(e); });
   Object.keys(groups).sort((a,b)=>a<b?1:-1).forEach(date=>{ const sum=groups[date].reduce((a,e)=>a+(e.thb||0),0); msg+='\n'+fmtDate(date)+' — '+fmtBaht(sum)+'\n'; groups[date].forEach(e=>{ msg+='  - '+e.description+': '+fmtBaht(e.thb)+'\n'; }); });
   try{
-    if(liff&&liff.isApiAvailable&&liff.isApiAvailable('shareTargetPicker')) liff.shareTargetPicker([{type:'text', text:msg}]);
-    else if(liff&&liff.isInClient&&liff.isInClient()) liff.sendMessages([{type:'text', text:msg}]).then(()=>liff.closeWindow());
-    else { navigator.clipboard.writeText(msg); alert('Summary copied to clipboard.'); }
-  }catch(e){ navigator.clipboard.writeText(msg); alert('Summary copied to clipboard.'); }
+    const inClient = liff && liff.isInClient && liff.isInClient();
+    const canShare = liff && liff.isApiAvailable && liff.isApiAvailable('shareTargetPicker');
+    if(inClient && canShare){
+      // Share to any LINE chat/friend (requires Share Target Picker enabled in console)
+      await liff.shareTargetPicker([{type:'text', text:msg}]);
+    } else if(inClient){
+      // Fallback: send to current chat and close
+      await liff.sendMessages([{type:'text', text:msg}]);
+    } else if(navigator.share){
+      // Native Web Share API (works in some mobile browsers)
+      await navigator.share({ text: msg });
+    } else {
+      await navigator.clipboard.writeText(msg);
+      alert('Summary copied to clipboard!');
+    }
+  }catch(e){
+    console.warn('Share failed:', e);
+    try{ await navigator.clipboard.writeText(msg); alert('Summary copied to clipboard!'); }
+    catch(_){ prompt('Copy this summary:', msg); }
+  }
 }
 
 function confirmDelete(kind, item){
