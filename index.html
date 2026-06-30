@@ -258,6 +258,7 @@ function ic(name, cls, attrs){ return '<svg class="ic ic-'+name+(cls?(' '+cls):'
 
 let db=null, profile=null, trips=[], currentTripId=null, currentTrip=null, expenses=[], unsubTrips=null, unsubExp=null, editingId=null;
 let form = { dateISO: todayISO(), category:null, currency:null };
+let lastCurrency = null; // remember last used currency
 
 function todayISO(){ const d=new Date(); const o=d.getTimezoneOffset(); const t=new Date(d.getTime()-o*60000); return t.toISOString().slice(0,10); }
 function parseISO(iso){ const [y,m,d]=iso.split('-').map(Number); return new Date(y,m-1,d); }
@@ -485,7 +486,7 @@ function submitForm(){
   const upd={}; upd['rates.'+form.currency]=rate; tripRef.update(upd).catch(()=>{});
   if(!DEFAULT_CURRENCIES.includes(form.currency)) tripRef.update({currencies: firebase.firestore.FieldValue.arrayUnion(form.currency)}).catch(()=>{});
   if(editingId){ tripRef.collection('expenses').doc(editingId).update(data).then(cancelEdit); }
-  else { data.createdAt=Date.now(); tripRef.collection('expenses').add(data).then(()=>clearForm()); }
+  else { data.createdAt=Date.now(); lastCurrency=form.currency; tripRef.collection('expenses').add(data).then(()=>clearForm()); }
 }
 function startEdit(id){
   const e=expenses.find(x=>x.id===id); if(!e) return; editingId=id;
@@ -495,7 +496,18 @@ function startEdit(id){
   refreshForm(); renderByDate(); document.querySelector('.form-box').scrollIntoView({behavior:'smooth', block:'center'});
 }
 function cancelEdit(){ editingId=null; clearForm(); el('formTitle').textContent='Add expense'; el('formCancel').classList.add('hide'); el('submitBtn').textContent='+ Add'; renderByDate(); }
-function clearForm(){ el('fDesc').value=''; el('fAmt').value=''; el('fRate').value=''; form.dateISO=todayISO(); form.category=null; form.currency=null; refreshForm(); }
+function clearForm(){
+  el('fDesc').value=''; el('fAmt').value=''; form.dateISO=todayISO(); form.category=null; form.currency=null;
+  // Restore last used currency and its rate
+  if(lastCurrency){
+    form.currency = lastCurrency;
+    const r = currentTrip && currentTrip.rates && currentTrip.rates[lastCurrency];
+    if(r != null) el('fRate').value = r; else el('fRate').value='';
+  } else {
+    el('fRate').value='';
+  }
+  refreshForm();
+}
 el('formCancel').addEventListener('click', cancelEdit);
 function flash(node){ node.animate([{opacity:1},{opacity:.4},{opacity:1}],{duration:300}); }
 
